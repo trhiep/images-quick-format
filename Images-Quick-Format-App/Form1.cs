@@ -1,4 +1,5 @@
-﻿using Images_Quick_Format_App.Models;
+﻿using ImageMagick;
+using Images_Quick_Format_App.Models;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -10,6 +11,8 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Forms.VisualStyles;
+using static System.Net.Mime.MediaTypeNames;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace Images_Quick_Format_App
 {
@@ -21,7 +24,6 @@ namespace Images_Quick_Format_App
         public Form1()
         {
             InitializeComponent();
-            
         }
         private void btnImport_Click(object sender, EventArgs e)
         {
@@ -58,13 +60,102 @@ namespace Images_Quick_Format_App
                 {
                     dgvImgList.DataSource = imageFiles.ToList();
                     dgvImgList.Refresh();
+                    lblProgress.Text = "0 / " + imageFiles.Count + " Done";
                 }
             }
         }
 
         private void newTaskToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Application.Restart();
+            System.Windows.Forms.Application.Restart();
+        }
+
+        private void exitToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            System.Windows.Forms.Application.Exit();
+        }
+
+        private async void btnExport_Click(object sender, EventArgs e)
+        {
+            if (imageFiles != null)
+            {
+                using (FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog())
+                {
+                    if (folderBrowserDialog.ShowDialog() == DialogResult.OK)
+                    {
+                        string fileExtension = ".png";
+                        if (cbxExportFormat.SelectedIndex == 1)
+                        {
+                            fileExtension = ".jpg";
+                        }
+
+                        disableFormContent();
+                        prbSuccessBar.Minimum = 0;
+                        prbSuccessBar.Maximum = imageFiles.Count;
+                        prbSuccessBar.Value = 0;
+                        int succeed = 0;
+                        int failed = 0;
+                        int count = 1;
+
+                        await Task.Run(() =>
+                        {
+                            foreach (ImageFile image in imageFiles)
+                            {
+                                if (File.Exists(image._imagePath))
+                                {
+                                    using (MagickImage magickImage = new MagickImage(image._imagePath))
+                                    {
+                                        string filePath = folderBrowserDialog.SelectedPath + "\\" + Path.GetFileNameWithoutExtension(image._imagePath) + fileExtension;
+                                        magickImage.Write(filePath);
+                                        succeed++;
+                                    }
+                                }
+                                else
+                                {
+                                    failed++;
+                                }
+
+                                // Cập nhật UI từ luồng giao diện người dùng
+                                Invoke(new Action(() =>
+                                {
+                                    prbSuccessBar.Value += 1;
+                                    lblProgress.Text = count + " / " + imageFiles.Count + " Done";
+                                }));
+
+                                count++;
+                            }
+                        });
+                        enableFormContent();
+                        MessageBox.Show("Saved images into " + folderBrowserDialog.SelectedPath + " successfully!\r\n" +
+                                        "Succeed: " + succeed + ".\r\n" +
+                                        "Failed: " + failed + ".\r\n");
+                    }
+                }
+            } else
+            {
+                MessageBox.Show("Empty");
+            }
+           
+        }
+
+        private void disableFormContent()
+        {
+            btnImport.Enabled = false;
+            btnExport.Enabled = false;
+            cbxExportFormat.Enabled = false;
+            cbxExportFormat.SelectedIndex = cbxExportFormat.SelectedIndex;
+            dgvImgList.Enabled = false;
+            mnsMainApp.Enabled = false;
+        }
+
+        private void enableFormContent()
+        {
+            btnImport.Enabled = true;
+            btnExport.Enabled = true;
+            cbxExportFormat.Enabled = true;
+            cbxExportFormat.SelectedIndex = cbxExportFormat.SelectedIndex;
+            dgvImgList.Enabled = true;
+            mnsMainApp.Enabled = true;
         }
     }
 }
